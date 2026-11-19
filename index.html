@@ -1,0 +1,672 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STATUE WARS</title>
+<script src="/socket.io/socket.io.js"></script>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #101010;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+.screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+h1 { font-size: 38px; }
+
+button, input, select {
+  background: #222;
+  color: white;
+  border: 2px solid #777;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 6px;
+  font-size: 16px;
+}
+
+button {
+  cursor: pointer;
+  min-width: 150px;
+}
+
+button:hover { background: #444; }
+
+input, select { width: 260px; }
+
+.panel {
+  background: #181818;
+  border: 2px solid #444;
+  border-radius: 14px;
+  padding: 20px;
+  margin: 10px;
+  width: 420px;
+  max-width: 95vw;
+}
+
+.setting {
+  margin: 12px;
+  text-align: left;
+}
+
+.setting label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.setting input, .setting select {
+  width: 100%;
+  margin: 0;
+}
+
+.hidden { display: none !important; }
+
+#game { display: none; padding: 10px; }
+
+canvas {
+  background: #222;
+  border: 3px solid white;
+  max-width: 95vw;
+  height: auto;
+}
+
+#status {
+  font-size: 22px;
+  margin: 10px;
+}
+
+#info { margin: 10px; }
+
+#roomCode {
+  font-size: 30px;
+  color: #00ff99;
+  font-weight: bold;
+}
+
+.playerEntry {
+  padding: 10px;
+  background: #292929;
+  margin: 5px;
+  border-radius: 8px;
+}
+
+#publicList {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+small { color: #aaa; }
+
+</style>
+</head>
+
+<body>
+
+<!-- MAIN MENU -->
+
+<div id="menu" class="screen">
+
+  <h1>STATUE WARS</h1>
+  <p>Multiplayer Edition</p>
+
+  <button onclick="showCreate()">CREATE ROOM</button>
+  <button onclick="showJoin()">JOIN ROOM</button>
+  <button onclick="showPublic()">PUBLIC ROOMS</button>
+
+  <p><small>Fight when the lights go off.</small></p>
+
+</div>
+
+<!-- CREATE ROOM -->
+
+<div id="createScreen" class="screen hidden">
+
+  <div class="panel">
+
+    <h2>CREATE ROOM</h2>
+
+    <div class="setting">
+      <label>Room name</label>
+      <input id="roomName" value="My Arena">
+    </div>
+
+    <div class="setting">
+      <label>Visibility</label>
+      <select id="visibility">
+        <option>Public</option>
+        <option>Private</option>
+      </select>
+    </div>
+
+    <div class="setting">
+      <label>Maximum players</label>
+      <select id="maxPlayers">
+        <option>2</option>
+        <option>4</option>
+        <option selected>8</option>
+        <option>12</option>
+        <option>16</option>
+      </select>
+    </div>
+
+    <div class="setting">
+      <label>NPC count (reserved setting)</label>
+      <input id="npcCount" type="number" min="0" max="15" value="0">
+    </div>
+
+    <div class="setting">
+      <label>Player HP</label>
+      <input id="hp" type="number" min="100" max="1000" step="50" value="500">
+    </div>
+
+    <div class="setting">
+      <label>Lighting mode</label>
+      <select id="lightMode">
+        <option>Random</option>
+        <option>Always ON</option>
+        <option>Always OFF</option>
+      </select>
+    </div>
+
+    <div class="setting">
+      <label>Weapons</label>
+      <select id="weapons">
+        <option>All weapons</option>
+        <option>Basic weapons</option>
+        <option>No weapons</option>
+      </select>
+    </div>
+
+    <div class="setting">
+      <label>
+        <input id="friendlyFire" type="checkbox" style="width:auto">
+        Friendly fire OFF
+      </label>
+    </div>
+
+    <input id="username" placeholder="Your username">
+
+    <button onclick="createRoom()">CREATE</button>
+    <button onclick="backMenu()">BACK</button>
+
+  </div>
+</div>
+
+<!-- JOIN ROOM -->
+
+<div id="joinScreen" class="screen hidden">
+
+  <div class="panel">
+
+    <h2>JOIN ROOM</h2>
+
+    <input id="joinUsername" placeholder="Your username">
+    <input id="joinCode" placeholder="LOFO-1234">
+
+    <button onclick="joinRoom()">JOIN</button>
+    <button onclick="backMenu()">BACK</button>
+
+  </div>
+</div>
+
+<!-- PUBLIC ROOMS -->
+
+<div id="publicScreen" class="screen hidden">
+
+  <div class="panel">
+
+    <h2>PUBLIC ROOMS</h2>
+
+    <div id="publicList">
+      No rooms found.
+    </div>
+
+    <button onclick="refreshRooms()">REFRESH</button>
+    <button onclick="backMenu()">BACK</button>
+
+  </div>
+</div>
+
+<!-- LOBBY -->
+
+<div id="lobby" class="screen hidden">
+
+  <div class="panel">
+
+    <h2>ROOM LOBBY</h2>
+
+    <p>ROOM CODE</p>
+    <div id="roomCode">----</div>
+
+    <button onclick="copyCode()">COPY CODE</button>
+
+    <h3>PLAYERS</h3>
+    <div id="playerList"></div>
+
+    <p id="hostStatus"></p>
+
+    <button id="startButton" onclick="startMatch()" class="hidden">
+      START MATCH
+    </button>
+
+    <button onclick="leaveRoom()">LEAVE ROOM</button>
+
+  </div>
+
+</div>
+
+<!-- GAME -->
+
+<div id="game">
+
+  <h2>LIGHT OFF FIGHT ON</h2>
+
+  <div id="status">WAITING...</div>
+
+  <canvas id="canvas" width="900" height="550"></canvas>
+
+  <div id="info"></div>
+
+  <p>
+    WASD / ARROWS = MOVE |
+    E = PICKUP |
+    Q = DROP |
+    SPACE = ATTACK
+  </p>
+
+  <button onclick="leaveRoom()">LEAVE MATCH</button>
+
+</div>
+
+<script>
+
+const socket = io();
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let myId = null;
+let myRoom = null;
+let isHost = false;
+let gameRunning = false;
+let roomStarted = false;
+
+let players = [];
+let weapons = [];
+let lightOn = true;
+
+let keys = {};
+let inputTimer = null;
+
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(el => {
+    el.classList.add("hidden");
+  });
+
+  document.getElementById("game").style.display = "none";
+
+  if (id === "game") {
+    document.getElementById("game").style.display = "block";
+  } else {
+    document.getElementById(id).classList.remove("hidden");
+  }
+}
+
+function backMenu() {
+  showScreen("menu");
+}
+
+function showCreate() {
+  showScreen("createScreen");
+}
+
+function showJoin() {
+  showScreen("joinScreen");
+}
+
+function showPublic() {
+  showScreen("publicScreen");
+  refreshRooms();
+}
+
+function createRoom() {
+  const username = document.getElementById("username").value.trim();
+
+  if (!username) {
+    alert("Enter a username!");
+    return;
+  }
+
+  socket.emit("createRoom", {
+    username,
+    name: document.getElementById("roomName").value,
+    visibility: document.getElementById("visibility").value,
+    maxPlayers: Number(document.getElementById("maxPlayers").value),
+    npcCount: Number(document.getElementById("npcCount").value),
+    hp: Number(document.getElementById("hp").value),
+    lightMode: document.getElementById("lightMode").value,
+    weapons: document.getElementById("weapons").value,
+    friendlyFire: document.getElementById("friendlyFire").checked
+  });
+}
+
+function joinRoom() {
+  const username = document.getElementById("joinUsername").value.trim();
+  const code = document.getElementById("joinCode").value.trim();
+
+  if (!username || !code) {
+    alert("Enter your username and room code.");
+    return;
+  }
+
+  socket.emit("joinRoom", { username, code });
+}
+
+function refreshRooms() {
+  socket.emit("getPublicRooms");
+}
+
+socket.on("publicRooms", rooms => {
+  const list = document.getElementById("publicList");
+
+  if (!rooms.length) {
+    list.innerHTML = "No public rooms available.";
+    return;
+  }
+
+  list.innerHTML = "";
+
+  rooms.forEach(room => {
+    const div = document.createElement("div");
+    div.className = "playerEntry";
+
+    const name = document.createElement("strong");
+    name.textContent = room.name;
+
+    const details = document.createElement("p");
+    details.textContent =
+      room.players + "/" + room.maxPlayers + " players";
+
+    const button = document.createElement("button");
+    button.textContent = "JOIN";
+    button.disabled = room.started || room.players >= room.maxPlayers;
+
+    button.onclick = () => {
+      const username = prompt("Enter your username:");
+
+      if (!username) return;
+
+      socket.emit("joinRoom", {
+        username,
+        code: room.code
+      });
+    };
+
+    div.append(name, details, button);
+    list.appendChild(div);
+  });
+});
+
+socket.on("joinedRoom", data => {
+  myId = data.playerId;
+  myRoom = data.code;
+  isHost = data.isHost;
+
+  document.getElementById("roomCode").textContent = myRoom;
+
+  showScreen("lobby");
+});
+
+socket.on("roomUpdate", data => {
+  players = data.players;
+  weapons = data.weapons;
+  lightOn = data.lightOn;
+
+  isHost = data.host === myId;
+  roomStarted = data.started;
+
+  const list = document.getElementById("playerList");
+  list.innerHTML = "";
+
+  players.forEach(player => {
+    const div = document.createElement("div");
+    div.className = "playerEntry";
+
+    div.textContent =
+      player.username +
+      (player.id === data.host ? " 👑 HOST" : "") +
+      (player.alive ? " | ❤️ " + player.hp : " | ELIMINATED");
+
+    list.appendChild(div);
+  });
+
+  document.getElementById("hostStatus").textContent =
+    isHost ? "YOU ARE THE HOST" : "WAITING FOR HOST";
+
+  document.getElementById("startButton")
+    .classList.toggle("hidden", !isHost || data.started);
+});
+
+function copyCode() {
+  if (myRoom) {
+    navigator.clipboard.writeText(myRoom)
+      .then(() => alert("Room code copied!"))
+      .catch(() => alert("Your room code is " + myRoom));
+  }
+}
+
+function startMatch() {
+  if (isHost) {
+    socket.emit("startMatch");
+  }
+}
+
+socket.on("matchStarted", () => {
+  gameRunning = true;
+  showScreen("game");
+  startInput();
+});
+
+socket.on("gameState", data => {
+  players = data.players;
+  weapons = data.weapons;
+  lightOn = data.lightOn;
+
+  if (gameRunning) {
+    draw();
+  }
+
+  updateInfo();
+});
+
+socket.on("matchEnded", message => {
+  gameRunning = false;
+  stopInput();
+
+  alert(message);
+
+  showScreen("lobby");
+});
+
+socket.on("errorMessage", message => {
+  alert(message);
+});
+
+function startInput() {
+  stopInput();
+
+  inputTimer = setInterval(() => {
+    if (!gameRunning) return;
+
+    socket.emit("input", {
+      up: keys.w || keys.arrowup,
+      down: keys.s || keys.arrowdown,
+      left: keys.a || keys.arrowleft,
+      right: keys.d || keys.arrowright,
+      attack: keys.space,
+      pickup: keys.e,
+      drop: keys.q
+    });
+
+    keys.e = false;
+    keys.q = false;
+
+  }, 50);
+}
+
+function stopInput() {
+  if (inputTimer) {
+    clearInterval(inputTimer);
+    inputTimer = null;
+  }
+}
+
+document.addEventListener("keydown", event => {
+  const key = event.key.toLowerCase();
+
+  if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
+    event.preventDefault();
+  }
+
+  keys[key === " " ? "space" : key] = true;
+});
+
+document.addEventListener("keyup", event => {
+  const key = event.key.toLowerCase();
+  keys[key === " " ? "space" : key] = false;
+});
+
+function draw() {
+  ctx.fillStyle = lightOn ? "#555" : "#080808";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(5, 5, 890, 540);
+
+  // Weapons
+
+  weapons.forEach(weapon => {
+    ctx.font = "28px Arial";
+    ctx.fillText(
+      weapon.type.symbol,
+      weapon.x - 14,
+      weapon.y + 10
+    );
+  });
+
+  // Players
+
+  players.forEach(player => {
+    if (!player.alive) return;
+
+    const isMe = player.id === myId;
+
+    ctx.fillStyle = isMe ? "#00ccff" : "#ff4444";
+
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // HP bar
+
+    ctx.fillStyle = "#222";
+    ctx.fillRect(player.x - 25, player.y - 32, 50, 7);
+
+    ctx.fillStyle = "#44ff44";
+    ctx.fillRect(
+      player.x - 25,
+      player.y - 32,
+      50 * (player.hp / player.maxHp),
+      7
+    );
+
+    // Username
+
+    ctx.fillStyle = "white";
+    ctx.font = "13px Arial";
+    ctx.textAlign = "center";
+
+    ctx.fillText(player.username, player.x, player.y - 42);
+
+    // Weapon
+
+    ctx.fillText(
+      player.weapon
+        ? player.weapon.symbol + " " + player.weapon.name
+        : "NO WEAPON",
+      player.x,
+      player.y + 40
+    );
+
+  });
+
+  if (!lightOn) {
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  ctx.textAlign = "left";
+}
+
+function updateInfo() {
+  const me = players.find(p => p.id === myId);
+
+  if (!me) return;
+
+  const alive = players.filter(p => p.alive).length;
+
+  document.getElementById("info").textContent =
+    "❤️ HP: " + me.hp + "/" + me.maxHp +
+    " | 🪓 Weapon: " +
+    (me.weapon ? me.weapon.name : "NONE") +
+    " | 👥 Players alive: " + alive;
+}
+
+function leaveRoom() {
+  stopInput();
+
+  socket.emit("leaveRoom");
+
+  gameRunning = false;
+  roomStarted = false;
+
+  myRoom = null;
+  myId = null;
+  isHost = false;
+
+  players = [];
+  weapons = [];
+  keys = {};
+
+  showScreen("menu");
+}
+
+socket.on("connect", () => {
+  console.log("Connected to multiplayer server!");
+});
+
+socket.on("disconnect", () => {
+  gameRunning = false;
+  stopInput();
+  alert("Connection lost. Reload the page to reconnect.");
+});
+
+</script>
+
+</body>
+</html>
